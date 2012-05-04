@@ -42,10 +42,10 @@ class Unhosted:
   HOST_META = """\
 <?xml version="1.0" encoding="UTF-8"?>
 <XRD xmlns="http://docs.oasis-open.org/ns/xri/xrd-1.0">
-  <Link rel="lrdd"
-             type="application/xrd+xml"
-             template="%(proto)s://%(host)s/webfinger/?uri={uri}"/>
-</XRD>"""
+  <Link rel="lrdd" type="application/xrd+xml"
+                   template="%(proto)s://%(host)s/webfinger/?uri={uri}"/>
+</XRD>
+"""
 
   def handleHttpRequest(self, req, scheme, netloc, path,
                               params, query, frag,
@@ -61,11 +61,11 @@ class Unhosted:
       'host': req.headers.get('HOST', req.headers.get('host', 'unknown')),
     }
 
-    if path == '/.well-known/host-meta':
+    if path == '.well-known/host-meta':
       mime_type = 'application/xrd+xml'
       data = self.HOST_META % page
 
-    elif path == '/webfinger/':
+    elif path == 'webfinger':
       mime_type = 'application/xrd+xml'
       data = self.WEBFINGER % page
 
@@ -83,7 +83,7 @@ class Unhosted:
 
 if __name__ == "__main__":
   try:
-    db_file = os.path.expanduser('~/.unhosted.sq3')
+    db_file = os.path.expanduser('~/.Unhosted.py.sq3')
     unhosted = Unhosted(db_file)
   except (IndexError, ValueError, OSError, IOError):
     print 'Usage: %s' % sys.argv[0]
