@@ -22,8 +22,8 @@
 ################################################################################
 #
 import hashlib
+import json
 import os
-import oauth
 import random
 import time
 import urllib
@@ -48,16 +48,27 @@ def sha1sig(parts):
   return h.digest().encode('base64').replace('+', '^').replace('=', '').strip()
 
 
+
+class RequestHandler(HttpdLite.RequestHandler):
+  def do_OPTIONS(self):
+    return self.do_GET(command='OPTIONS')
+
+
 class Unhosted:
   def __init__(self, db_path):
     self.db_path = db_path
+    self.db_metadata = {}
     self.db_password = '%x-%x' % (os.getpid(), random.randint(0, 0xFFFF))
     self.listen_on = ('localhost', 6789)
 
   def stop(self):
     pass
 
-  CORS_HEADERS = [('Access-Control-Allow-Origin', '*')]
+  CORS_HEADERS = [
+    ('Access-Control-Allow-Origin', '*'),
+    ('Access-Control-Allow-Methods', 'GET, PUT, DELETE'),
+    ('Access-Control-Allow-Headers', 'content-length, authorization')
+  ]
   HOST_META = """<?xml version='1.0' encoding='UTF-8'?>
 <XRD xmlns='http://docs.oasis-open.org/ns/xri/xrd-1.0'>
   <Link rel='lrdd' type='application/xrd+xml'
@@ -87,7 +98,7 @@ class Unhosted:
     data = None
 
     # Shared values for rendering templates
-    host = req.headers.get('HOST', req.headers.get('host', 'unknown'))
+    host = req.header('Host', 'unknown')
     page = {
       'proto': 'https', # FIXME
       'host': host,
@@ -120,10 +131,8 @@ class Unhosted:
       for key in page.keys():
         page['q_%s' % key] = urllib.quote(page[key])
     return req.sendResponse(data or ((template % page).encode('utf-8')),
-                            code=code,
-                            mimetype=mime_type,
-                            header_list=headers,
-                            cachectrl=cachectrl)
+                            code=code, mimetype=mime_type,
+                            header_list=headers, cachectrl=cachectrl)
 
   OAUTH_GRANT = """<!DOCTYPE html>
 <html><head>
@@ -160,7 +169,7 @@ class Unhosted:
     scope = scope and scope.split(',') or []
 
     if posted:
-      redirect = '%s#error=invalid_request' % redirect_uri
+      redirect = None
       if 'deny' in posted:
         redirect = '%s#error=invalid_client' % redirect_uri
       elif posted.get('password', [''])[0] == self.db_password:
@@ -172,17 +181,18 @@ class Unhosted:
             parts.append('w_%s' % scope[i])
         if parts:
           parts.extend([subject])
-          parts.append(sha1sig(parts))
+          parts.append(sha1sig([self.db_password]+parts))
           token = ','.join(parts)
           redirect = ('%s#access_token=%s&token_type=bearer'
                       ) % (redirect_uri, token)
+        else:
+          redirect = '%s#error=invalid_request' % redirect_uri
 
       if redirect:
         req.sendResponse(('<h1>Redirecting to <a href="%s">%s</a></h1>'
                           ) % (redirect, redirect),
                          code=302,
                          header_list=[('Location', redirect)])
-
 
     scope_html = []
     for cat in range(0, len(scope)):
@@ -199,24 +209,118 @@ class Unhosted:
     return req.sendResponse((self.OAUTH_GRANT % page).encode('utf-8'),
                             code=500)
 
+  def checkAuth(self, req, user):
+    try:
+      how, parts = req.header('Authorization', ' ').split()
+      if how.lower() != 'bearer': return False
+      parts = parts.split(',')
+      sig = parts.pop(-1)
+      if sig != sha1sig([self.db_password]+parts): False
+      if parts.pop(-1) != user: return False
+      return parts
+    except (ValueError, KeyError), e:
+      return ['r_public']
+
+  def mkdir(self, path):
+    dirname = os.path.dirname(path)
+    if not os.path.exists(dirname): self.mkdir(dirname)
+    os.mkdir(path)
+
+  def getMetadata(self, dirname):
+    if dirname in self.db_metadata:
+      return self.db_metadata[dirname]
+    try:
+      md = json.load(open(os.path.join(dirname, '_RS_METADATA.js'), 'rb'))
+    except (OSError, IOError):
+      md = {}
+    self.db_metadata[dirname] = md
+    return self.db_metadata
+
+  def setMetadata(self, dirname, key, value):
+    md = self.getMetadata(dirname)
+    md[key] = value
+    # FIXME: Use zlib to make this smaller?
+    json.dump(md, open(os.path.join(dirname, '_RS_METADATA.js'), 'wb'), indent=2)
+
+  def getFile(self, filename):
+    dirname, basename = os.path.split(filename)
+    metadata = self.getMetadata(dirname).get(basename, None)
+    if not metadata:
+      if os.path.isdir(filename):
+        return '{}', 'application/json', 200 # FIXME: Directory listing?
+      else:
+        return '<h1>Not Found</h1>\n', 'text/html', 404
+
+    mime_type = metadata.get('mime-type', 'text/plain')
+    data = metadata.get('data', '')
+    if 'file-name' in metadata:
+      data = ''.join(open(os.path.join(dirname, metadata['file-name'], 'rb')
+                          ).readlines())
+
+    return data, mime_type, 200
+
+  def putFile(self, filename, data, mime_type):
+    dirname, basename = os.path.split(filename)
+    if not os.path.exists(dirname): self.mkdir(dirname)
+    if data == '' and not mime_type:
+      os.mkdir(filename)
+    else:
+      metadata = {
+        'mime-type': mime_type or 'application/octet-stream'
+      }
+      # FIXME: Magic number alert!
+      if len(data) > 32000:
+        fn = metadata['file-name'] = urllib.quote(basename)
+        fd = open(os.path.join(dirname, fn), 'wb')
+        fd.write(data)
+        fd.close()
+      else:
+        metadata['data'] = data
+      self.setMetadata(dirname, basename, metadata)
+
+    # FIXME: Return codes?
+    return '', 'text/plain', 200
+
   def handleStorage(self, req, path, page, qs, posted):
-    code = 500
     headers = self.CORS_HEADERS[:]
     cachectrl = 'max-age=600, private'
 
-    data = 'Unimplemented'
-    mime_type = 'text/html'
+    # Clean up our path a bit...
+    if '..' in path: raise ValueError('Evil path: %s' % path)
 
-    return req.sendResponse(data,
-                            code=code,
-                            mimetype=mime_type,
-                            header_list=headers,
-                            cachectrl=cachectrl)
+    # Calculate our filename
+    filename = os.path.normpath('/'.join([self.db_path, path]))
+
+    # Strip user and category off the path
+    user, category, path = path.split('/', 2)
+    creds = self.checkAuth(req, user)
+
+    if req.command == 'OPTIONS':
+      data, mime_type, code = '', 'text/html', 200
+
+    elif req.command == 'GET':
+      if 'r_%s' % category in creds:
+        data, mime_type, code = self.getFile(filename)
+      else:
+        data, mime_type, code = '<h1>Unauthorized</h1>\n', 'text/html', 401
+
+    elif req.command == 'PUT':
+      if 'w_%s' % category in creds:
+        data, mime_type, code = self.putFile(filename, posted['PUT'],
+                                             req.header('Content-Type'))
+      else:
+        data, mime_type, code = '<h1>Unauthorized</h1>\n', 'text/html', 401
+
+    else:
+      data, mime_type, code = 'Unimplemented', 'text/html', 500
+
+    return req.sendResponse(data, code=code, mimetype=mime_type,
+                            header_list=headers, cachectrl=cachectrl)
 
 
 if __name__ == "__main__":
   try:
-    db_path = os.path.expanduser('~/.Unhosted.py/')
+    db_path = os.path.expanduser('~/.Unhosted.py')
     unhosted = Unhosted(db_path)
   except (IndexError, ValueError, OSError, IOError):
     print 'Usage: %s' % sys.argv[0]
@@ -226,8 +330,8 @@ if __name__ == "__main__":
     sys.exit(1)
   try:
     try:
-      import HttpdLite
-      HttpdLite.Server(unhosted.listen_on, unhosted).serve_forever()
+      HttpdLite.Server(unhosted.listen_on, unhosted,
+                       handler=RequestHandler).serve_forever()
     except KeyboardInterrupt:
       unhosted.stop()
   except:
