@@ -94,7 +94,7 @@ class Unhosted:
     # Defaults, may be overridden by individual response pages
     code = 200
     headers = self.CORS_HEADERS[:]
-    cachectrl = 'max-age=600, private'
+    cachectrl = 'no-cache'
     data = None
 
     # Shared values for rendering templates
@@ -174,10 +174,11 @@ class Unhosted:
         redirect = '%s#error=invalid_client' % redirect_uri
       elif posted.get('password', [''])[0] == self.db_password:
         parts = []
+        print '%s' % posted
         for i in range(0, len(scope)):
-          if 'r_%s' % i in posted:
+          if ('r_%s' % i) in posted:
             parts.append('r_%s' % scope[i])
-          if 'w_%s' % i in posted:
+          if ('w_%s' % i) in posted:
             parts.append('w_%s' % scope[i])
         if parts:
           parts.extend([subject])
@@ -212,14 +213,15 @@ class Unhosted:
   def checkAuth(self, req, user):
     try:
       how, parts = req.header('Authorization', ' ').split()
-      if how.lower() != 'bearer': return False
+      if how.lower() != 'bearer': raise ValueError(how)
       parts = parts.split(',')
       sig = parts.pop(-1)
-      if sig != sha1sig([self.db_password]+parts): False
-      if parts.pop(-1) != user: return False
+      if sig != sha1sig([self.db_password]+parts): raise ValueError('sig')
+      if parts.pop(-1) != user: raise ValueError(user)
+      print 'Creds: %s' % parts
       return parts
     except (ValueError, KeyError), e:
-      return ['r_public']
+      return ['r_public', 'error_%s' % e]
 
   def mkdir(self, path):
     dirname = os.path.dirname(path)
@@ -283,7 +285,7 @@ class Unhosted:
 
   def handleStorage(self, req, path, page, qs, posted):
     headers = self.CORS_HEADERS[:]
-    cachectrl = 'max-age=600, private'
+    cachectrl = 'no-cache'
 
     # Clean up our path a bit...
     if '..' in path: raise ValueError('Evil path: %s' % path)
@@ -299,16 +301,18 @@ class Unhosted:
       data, mime_type, code = '', 'text/html', 200
 
     elif req.command == 'GET':
-      if 'r_%s' % category in creds:
+      if ('r_%s' % category) in creds:
         data, mime_type, code = self.getFile(filename)
       else:
+        print 'r_%s not in %s' % (category, creds)
         data, mime_type, code = '<h1>Unauthorized</h1>\n', 'text/html', 401
 
     elif req.command == 'PUT':
-      if 'w_%s' % category in creds:
+      if ('w_%s' % category) in creds:
         data, mime_type, code = self.putFile(filename, posted['PUT'],
                                              req.header('Content-Type'))
       else:
+        print 'w_%s not in %s' % (category, creds)
         data, mime_type, code = '<h1>Unauthorized</h1>\n', 'text/html', 401
 
     else:
