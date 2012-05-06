@@ -379,11 +379,14 @@ if __name__ == "__main__":
   except (IndexError, ValueError, OSError, IOError):
     print 'Usage: %s' % sys.argv[0]
     print
-    print 'The file will create an database in: %s' % db_file
+    print 'The file will create an database in: %s' % db_path
     print
     sys.exit(1)
   try:
     try:
+      print 'This is Unhosted.py, listening on %s:%s' % unhosted.listen_on
+      print 'Fork me on Github: https://github.com/pagekite/plugins-pyUnhosted'
+      print
       HttpdLite.Server(unhosted.listen_on, unhosted,
                        handler=RequestHandler).serve_forever()
     except KeyboardInterrupt:
