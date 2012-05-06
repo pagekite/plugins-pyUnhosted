@@ -27,7 +27,7 @@ sys.path[0:0] = ['.SELF/']
 
 
 ###############################################################################
-__FILES[".SELF/../../HttpdLite/HttpdLite.py"] = """\
+__FILES[".SELF/../HttpdLite/HttpdLite.py"] = """\
 #!/usr/bin/python
 #
 # httpd_lite.py, Copyright 2012, Bjarni R. Einarsson <http://bre.klaki.net/>
@@ -299,7 +299,7 @@ if __name__ == \"__main__\":
 """
 sys.modules["HttpdLite"] = imp.new_module("HttpdLite")
 sys.modules["HttpdLite"].open = __comb_open
-exec __FILES[".SELF/../../HttpdLite/HttpdLite.py"] in sys.modules["HttpdLite"].__dict__
+exec __FILES[".SELF/../HttpdLite/HttpdLite.py"] in sys.modules["HttpdLite"].__dict__
 
 
 ###############################################################################
@@ -684,11 +684,14 @@ if __name__ == "__main__":
   except (IndexError, ValueError, OSError, IOError):
     print 'Usage: %s' % sys.argv[0]
     print
-    print 'The file will create an database in: %s' % db_file
+    print 'The file will create an database in: %s' % db_path
     print
     sys.exit(1)
   try:
     try:
+      print 'This is Unhosted.py, listening on %s:%s' % unhosted.listen_on
+      print 'Fork me on Github: https://github.com/pagekite/plugins-pyUnhosted'
+      print
       HttpdLite.Server(unhosted.listen_on, unhosted,
                        handler=RequestHandler).serve_forever()
     except KeyboardInterrupt:
