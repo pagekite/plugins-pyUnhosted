@@ -233,37 +233,56 @@ class Unhosted:
       return self.db_metadata[dirname]
     try:
       md = json.load(open(os.path.join(dirname, '_RS_METADATA.js'), 'rb'))
+      self.db_metadata[dirname] = md
     except (OSError, IOError):
       md = {}
-    self.db_metadata[dirname] = md
-    return self.db_metadata
+    return md
 
   def setMetadata(self, dirname, key, value):
     md = self.getMetadata(dirname)
     md[key] = value
+    self.saveMetadata(dirname, md)
+
+  def delMetadata(self, dirname, key, value):
+    md = self.getMetadata(dirname)
+    if key in md:
+      del md[key]
+      self.saveMetadata(dirname, md)
+
+  def saveMetadata(self, dirname, md):
     # FIXME: Use zlib to make this smaller?
+    # FIXME: Just mark dirty, move the actual writes to another thread.
     json.dump(md, open(os.path.join(dirname, '_RS_METADATA.js'), 'wb'), indent=2)
 
-  def getFile(self, filename):
+  def getFile(self, filename, authenticated):
     dirname, basename = os.path.split(filename)
     metadata = self.getMetadata(dirname).get(basename, None)
     if not metadata:
-      if os.path.isdir(filename):
+      if authenticated and os.path.isdir(filename):
         return '{}', 'application/json', 200 # FIXME: Directory listing?
       else:
         return '<h1>Not Found</h1>\n', 'text/html', 404
 
-    mime_type = metadata.get('mime-type', 'text/plain')
-    data = metadata.get('data', '')
-    if 'file-name' in metadata:
-      data = ''.join(open(os.path.join(dirname, metadata['file-name'], 'rb')
-                          ).readlines())
+    if authenticated or 'r' in metadata.get('public', ''):
+      mime_type = metadata.get('mime-type', 'text/plain')
+      data = metadata.get('data', '')
+      if 'file-name' in metadata:
+        data = ''.join(open(os.path.join(dirname, metadata['file-name'], 'rb')
+                            ).readlines())
+    else:
+      return '<h1>Unauthorized</h1>\n', 'text/html', 401
 
     return data, mime_type, 200
 
-  def putFile(self, filename, data, mime_type):
+  def putFile(self, filename, data, mime_type, authenticated):
     dirname, basename = os.path.split(filename)
-    if not os.path.exists(dirname): self.mkdir(dirname)
+    if authenticated:
+      if not os.path.exists(dirname): self.mkdir(dirname)
+    else:
+      metadata = self.getMetadata(dirname).get(basename, None)
+      if 'w' not in metadata.get('public', ''):
+        return '<h1>Unauthorized</h1>\n', 'text/html', 401
+
     if data == '' and not mime_type:
       os.mkdir(filename)
     else:
@@ -283,6 +302,19 @@ class Unhosted:
     # FIXME: Return codes?
     return '', 'text/plain', 200
 
+  def delFile(self, filename, authenticated):
+    dirname, basename = os.path.split(filename)
+    metadata = self.getMetadata(dirname).get(basename, None)
+    if not metadata or not authenticated:
+      return '<h1>Not Found</h1>\n', 'text/html', 404
+
+    if 'file-name' in metadata:
+      os.remove(os.path.join(dirname, metadata['file-name']))
+    self.delMetadata(dirname, basename)
+
+    return '', 'text/html', 200
+
+
   def handleStorage(self, req, path, page, qs, posted):
     headers = self.CORS_HEADERS[:]
     cachectrl = 'no-cache'
@@ -301,19 +333,18 @@ class Unhosted:
       data, mime_type, code = '', 'text/html', 200
 
     elif req.command == 'GET':
-      if ('r_%s' % category) in creds:
-        data, mime_type, code = self.getFile(filename)
-      else:
-        print 'r_%s not in %s' % (category, creds)
-        data, mime_type, code = '<h1>Unauthorized</h1>\n', 'text/html', 401
+      authenticated = ('r_%s' % category) in creds
+      data, mime_type, code = self.getFile(filename, authenticated)
 
     elif req.command == 'PUT':
-      if ('w_%s' % category) in creds:
-        data, mime_type, code = self.putFile(filename, posted['PUT'],
-                                             req.header('Content-Type'))
-      else:
-        print 'w_%s not in %s' % (category, creds)
-        data, mime_type, code = '<h1>Unauthorized</h1>\n', 'text/html', 401
+      authenticated = ('w_%s' % category) in creds
+      data, mime_type, code = self.putFile(filename, posted['PUT'],
+                                           req.header('Content-Type'),
+                                           authenticated)
+
+    elif req.command == 'DELETE':
+      authenticated = ('w_%s' % category) in creds
+      data, mime_type, code = self.delFile(filename, authenticated)
 
     else:
       data, mime_type, code = 'Unimplemented', 'text/html', 500
