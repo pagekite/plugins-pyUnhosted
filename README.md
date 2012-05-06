@@ -18,11 +18,10 @@ Quick-start:
    1. Install [pagekite.py](https://pagekite.net/downloads/)
    2. In a console: `pagekite.py --signup`
    3. Download [Unhosted.combined.py](https://raw.github.com/pagekite/plugins-pyUnhosted/master/bin/Unhosted.combined.py)
-   4. In a console: `chmod +x Unhosted.combined.py`
-   5. In a console: `./Unhosted.combined.py`
-   5. In another console, run: `pagekite.py 6789 rs-YOURNAME.pagekite.me`
+   4. In a console: `python ./Unhosted.combined.py`
+   5. In another console: `pagekite.py 6789 rs-YOURNAME.pagekite.me`
 
-You should now be able to use `*anything*@rs-YOURNAME.pagekite.me` as a
+You should now be able to use `whatever@rs-YOURNAME.pagekite.me` as a
 remoteStorage account.
 
 If you prefer, you can also use **Unhosted.py** without *PageKite*, but you
