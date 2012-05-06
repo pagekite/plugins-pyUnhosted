@@ -26,9 +26,9 @@ Quick-start:
 You should now be able to use `*anything*@rs-YOURNAME.pagekite.me` as a
 remoteStorage account.
 
-Eventually this module will become one of the default plug-ins for
-[`pagekite.py`](http://pagekite.org/), but for now it runs as a
-stand-alone HTTP daemon.
+If you prefer, you can also `Unhosted.py` without *PageKite*, but you will
+need an SSL certificate and a reverse proxy (such like Pound) in order to
+comply with the protocol.  AFAICT, hosting on `http://localhost/` won't work.
 
 
 ## Play! ##
