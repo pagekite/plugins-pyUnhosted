@@ -1,9 +1,8 @@
 # Unhosted.py #
 
 This is an HTTP server implementing the bare minimum required for the
-[Unhosted.org](http://unhosted.org/) **remoteStorage** 
-[`simple`](http://www.w3.org/community/rww/wiki/Read-write-web-00#simple)
-API.
+[simple remoteStorage](http://www.w3.org/community/rww/wiki/Read-write-web-00#simple)
+API from [unhosted.org](http://unhosted.org/).
 
 Hopefully this program will be useful for folks who want to study how
 the remoteStorage protocol works or as a development tool for people
@@ -27,8 +26,9 @@ You should now be able to use `*anything*@rs-YOURNAME.pagekite.me` as a
 remoteStorage account.
 
 If you prefer, you can also `Unhosted.py` without *PageKite*, but you will
-need an SSL certificate and a reverse proxy (such like Pound) in order to
-comply with the protocol.  AFAICT, hosting on `http://localhost/` won't work.
+need an SSL enabled reverse HTTP proxy (such as Pound) in order to comply
+with the protocol.  As far as I can tell, hosting on `http://localhost/`
+won't work.
 
 
 ## Play! ##
@@ -42,7 +42,10 @@ with `Unhosted.py`.
 
 The file `Unhosted.combined.py` is combination of `Unhosted.py` and the
 `HttpdLite.py` module it depends on.  For hacking, you'll want to check
-both out from github.
+both out from [github](https://github.com/):
+
+   * [Unhosted.py](https://github.com/pagekite/plugins-pyUnhosted)
+   * [HttpdLite.py](https://github.com/pagekite/plugins-pyHttpdLite)
 
 
 ## Where is my data? ##
@@ -64,3 +67,4 @@ filesystem, although the name will probably be sanitized somewhat.
 
 Note that changes to individual `_RS_METADATA.js` files may be overwritten
 by `Unhosted.py` if it is running, as it caches their contents in RAM.
+
