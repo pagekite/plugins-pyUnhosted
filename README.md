@@ -17,9 +17,10 @@ want to store their Unhosted data on their own devices.
 Quick-start:
 
    1. Install [pagekite.py](https://pagekite.net/downloads/)
-   2. `pagekite.py --signup`
-   3. Install [Unhosted.combined.py]()
-   4. Run it in a console
+   2. In a console: `pagekite.py --signup`
+   3. Download [Unhosted.combined.py](https://raw.github.com/pagekite/plugins-pyUnhosted/master/bin/Unhosted.combined.py)
+   4. In a console: `chmod +x Unhosted.combined.py`
+   5. In a console: `./Unhosted.combined.py`
    5. In another console, run: `pagekite.py 6789 rs-YOURNAME.pagekite.me`
 
 You should now be able to use `*anything*@rs-YOURNAME.pagekite.me` as a
