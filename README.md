@@ -25,8 +25,8 @@ Quick-start:
 You should now be able to use `*anything*@rs-YOURNAME.pagekite.me` as a
 remoteStorage account.
 
-If you prefer, you can also `Unhosted.py` without *PageKite*, but you will
-need an SSL enabled reverse HTTP proxy (such as Pound) in order to comply
+If you prefer, you can also use **Unhosted.py** without *PageKite*, but you
+will need an SSL enabled reverse HTTP proxy (such as Pound) in order to comply
 with the protocol.  As far as I can tell, hosting on `http://localhost/`
 won't work.
 
@@ -46,6 +46,9 @@ both out from [github](https://github.com/):
 
    * [Unhosted.py](https://github.com/pagekite/plugins-pyUnhosted)
    * [HttpdLite.py](https://github.com/pagekite/plugins-pyHttpdLite)
+
+The combined "binary" is generated using
+[Breeder](https://github.com/pagekite/PyBreeder).
 
 
 ## Where is my data? ##
