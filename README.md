@@ -70,3 +70,11 @@ filesystem, although the name will probably be sanitized somewhat.
 Note that changes to individual `_RS_METADATA.js` files may be overwritten
 by `Unhosted.py` if it is running, as it caches their contents in RAM.
 
+
+## Bugs ##
+
+   * Directory listings do not work yet.
+   * User names and passwords are ephemeral.
+   * _RS_METADATA.js could be overwritten by evil apps.
+
+
