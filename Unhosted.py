@@ -25,6 +25,7 @@ import hashlib
 import json
 import os
 import random
+import re
 import time
 import urllib
 
@@ -63,6 +64,10 @@ class Unhosted:
 
   def stop(self):
     pass
+
+  METADATA_FILE = '_RS_METADATA.js'
+  METADATA_TARGET_SIZE = 256*1024
+  METADATA_NO_INLINE_RE = re.compile('^..*\.[a-zA-Z0-9]{2,5}$')
 
   CORS_HEADERS = [
     ('Access-Control-Allow-Origin', '*'),
@@ -232,7 +237,11 @@ class Unhosted:
     if dirname in self.db_metadata:
       return self.db_metadata[dirname]
     try:
-      md = json.load(open(os.path.join(dirname, '_RS_METADATA.js'), 'rb'))
+      fn = os.path.join(dirname, self.METADATA_FILE)
+      md = json.load(open(fn, 'rb'))
+      md[self.METADATA_FILE] = {
+        'bytes': os.path.getsize(fn)
+      }
       self.db_metadata[dirname] = md
     except (OSError, IOError):
       md = {}
@@ -252,7 +261,7 @@ class Unhosted:
   def saveMetadata(self, dirname, md):
     # FIXME: Use zlib to make this smaller?
     # FIXME: Just mark dirty, move the actual writes to another thread.
-    json.dump(md, open(os.path.join(dirname, '_RS_METADATA.js'), 'wb'), indent=2)
+    json.dump(md, open(os.path.join(dirname, self.METADATA_FILE), 'wb'), indent=2)
 
   def getFile(self, filename, authenticated):
     dirname, basename = os.path.split(filename)
@@ -267,20 +276,31 @@ class Unhosted:
       mime_type = metadata.get('mime-type', 'text/plain')
       data = metadata.get('data', '')
       if 'file-name' in metadata:
-        data = ''.join(open(os.path.join(dirname, metadata['file-name'], 'rb')
+        data = ''.join(open(os.path.join(dirname, metadata['file-name']), 'rb'
                             ).readlines())
     else:
       return '<h1>Unauthorized</h1>\n', 'text/html', 401
 
     return data, mime_type, 200
 
+  def inlineFile(self, filename, size, rs_meta):
+    # Check if the data is too big
+    rs_meta_size = rs_meta.get(self.METADATA_FILE, {}).get('bytes', 0)
+    if size > (self.METADATA_TARGET_SIZE-rs_meta_size)/10: return False
+
+    # Simple heuristic to see if we have foo.bar style name
+    if self.METADATA_NO_INLINE_RE.match(filename): return False
+
+    # Small with a weird name: inlining is OK.
+    return True
+
   def putFile(self, filename, data, mime_type, authenticated):
     dirname, basename = os.path.split(filename)
+    rs_metadata = self.getMetadata(dirname)
     if authenticated:
       if not os.path.exists(dirname): self.mkdir(dirname)
     else:
-      metadata = self.getMetadata(dirname).get(basename, None)
-      if 'w' not in metadata.get('public', ''):
+      if 'w' not in rs_metadata.get(basename, {}).get('public', ''):
         return '<h1>Unauthorized</h1>\n', 'text/html', 401
 
     if data == '' and not mime_type:
@@ -289,8 +309,7 @@ class Unhosted:
       metadata = {
         'mime-type': mime_type or 'application/octet-stream'
       }
-      # FIXME: Magic number alert!
-      if len(data) > 32000:
+      if not self.inlineFile(basename, len(data), rs_metadata):
         fn = metadata['file-name'] = urllib.quote(basename)
         fd = open(os.path.join(dirname, fn), 'wb')
         fd.write(data)
