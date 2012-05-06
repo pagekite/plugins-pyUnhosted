@@ -75,6 +75,6 @@ by `Unhosted.py` if it is running, as it caches their contents in RAM.
 
    * Directory listings do not work yet.
    * User names and passwords are ephemeral.
-   * _RS_METADATA.js could be overwritten by evil apps.
-
+   * `_RS_METADATA.js` could be overwritten by evil apps.
+   * Saving metadata fails sometimes due to a race condition.
 
